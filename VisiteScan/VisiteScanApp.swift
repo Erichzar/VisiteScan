@@ -10,23 +10,37 @@ import SwiftData
 
 @main
 struct VisiteScanApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+
+    let container: ModelContainer
+
+    init() {
+        let schema = Schema([BusinessCard.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            container = try ModelContainer(for: schema, configurations: config)
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            // Skema-konflik tydens ontwikkeling — vee die ou stoor uit en begin vars.
+            // (Selfde herstel as FuelScan. Sodra die model gevestig is en daar
+            // regte data in is, moet dit 'n behoorlike migrasie word.)
+            if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory,
+                                                        in: .userDomainMask).first {
+                for file in ["default.store", "default.store-shm", "default.store-wal"] {
+                    try? FileManager.default.removeItem(at: appSupport.appending(path: file))
+                }
+            }
+            do {
+                container = try ModelContainer(for: schema, configurations: config)
+            } catch {
+                fatalError("SwiftData kon nie laai nie: \(error)")
+            }
         }
-    }()
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(container)
     }
 }
