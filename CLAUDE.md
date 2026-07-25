@@ -15,16 +15,8 @@ stap vir stap, en skryf in Afrikaans.
 
 ## Waar ons is (25 Julie 2026)
 
-Stappe 0–3 klaar. **Volgende: Stap 4 — die veldontleding.**
-
-```
-b99a255  Stap 3: rou OCR wat reëlposisies en -hoogtes bewaar
-2c31d52  Herstel AppLogo-beeldstel sodat die logo binne die app wys
-e5d90ee  Stap 2: kaartjie inlees uit kamera, skandeerder, galery of lêers
-652ebba  Stap 1: geraamte met BusinessCard-model en drie oortjies
-5a08033  Voeg herbouplan by, met CloudKit as Stap 9
-b8b1d6e  Initial commit: leë VisiteScan-projek uit Xcode-sjabloon
-```
+Stappe 0–3 klaar (`git log --oneline` vir die presiese lys).
+**Volgende: Stap 4 — die veldontleding.**
 
 Erich sou 'n paar werklike kaartjies skandeer en kyk of die reël met die
 **grootste tekshoogte** die persoon se naam is, en of dit soms die maatskappy
@@ -33,12 +25,17 @@ antwoord bepaal of die naamherkenning 'n uitsluitingsreël vir logo's nodig het.
 
 ## Uitstaande
 
-1. **Niks is nog gepush nie.** `gh` kan nie by die macOS-sleutelhanger uitkom
-   nie (`Timeout … (keyring)`; die netwerk is reg, dit is die token wat weg is).
-   Erich moet in Terminal `gh auth logout --hostname github.com` en dan
-   `gh auth login` doen — of `gh auth login --insecure-storage` as dit weer
-   vashaak. Daarna:
-   `gh repo create VisiteScan --private --source=. --remote=origin --push`
+1. **Niks is nog gepush nie**, en `gh auth status` sê nou *"not logged into any
+   GitHub hosts"* — die `logout` het gewerk, die `login` nie. Die netwerk is
+   heeltemal reg (IPv4 én IPv6 gee HTTP 200 na `api.github.com`); dit was nog
+   altyd die sleutelhanger-token. In Terminal:
+   ```bash
+   gh auth login          # GitHub.com → HTTPS → Yes → Login with a web browser
+   gh auth status         # moet skoon lyk
+   cd "/Volumes/PRO-G40/ACTIVE/08 AI/Projects/01 Apps/VisiteScan"
+   gh repo create VisiteScan --private --source=. --remote=origin --push
+   ```
+   Haak dit weer vas: `gh auth login --insecure-storage`.
    *Dit is die belangrikste uitstaande item — die vorige weergawe van hierdie
    app is verloor juis omdat die kode nooit gepush is nie.*
 2. Los `visitescan-iOS-Default-1024@1x.png` in die projekwortel is oorbodig
@@ -57,6 +54,15 @@ antwoord bepaal of die naamherkenning 'n uitsluitingsreël vir logo's nodig het.
     build CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "error:|BUILD SUCCEEDED|BUILD FAILED"
   ```
 - **Een commit per stap**, met 'n boodskap wat die *waarom* verduidelik.
+- **Moenie die git-outeur oorskryf nie.** Erich se globale config is
+  `Erichzar <167574906+Erichzar@users.noreply.github.com>` — laat `git commit`
+  dit self gebruik. (Vroeër is `-c user.name="Erich Lutz"` afgedwing, uit sy ou
+  rugsteun-skrip oorgeneem; hy moes een commit met die hand regstel.)
+  Commits b8b1d6e t/m 2c31d52 dra nog die verkeerde outeur. Niks is gepush nie,
+  so dit kan met een opdrag reggemaak word — **vra hom eers**:
+  ```bash
+  git rebase --root --exec 'git commit --amend --no-edit --reset-author'
+  ```
 - Die projek gebruik Xcode 16+ se **gesinkroniseerde lêergroepe**, so enige
   `.swift` wat in `VisiteScan/` beland is outomaties deel van die teiken —
   moenie aan `project.pbxproj` karring nie.
