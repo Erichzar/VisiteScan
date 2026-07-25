@@ -4,6 +4,17 @@
 **Doel:** Herbou die verlore Visitescan iOS-app: skandeer 'n visitekaartjie, lees die besonderhede met OCR, en stoor dit in Contacts.app.
 **Sjabloon:** FuelScan (`/Volumes/PRO-G40/ACTIVE/08 AI/Projects/01 Apps/FuelScan`) — selfde argitektuur, selfde gevoel.
 
+> ## 📍 Status — 25 Julie 2026
+>
+> **Stappe 0–3 klaar. Volgende: Stap 4 (veldontleding).**
+>
+> Die app skandeer 'n kaartjie en wys die gelese teks met elke reël se
+> tekshoogte. Erich sou 'n paar werklike kaartjies toets en kyk of die
+> **grootste teks** die naam is, en of dit soms die logo is.
+> **Vra hom wat hy gesien het voor Stap 4 gebou word.**
+>
+> **Dringend uitstaande: niks is nog na GitHub gepush nie** — sien §7.
+
 ---
 
 ## 1. Agtergrond
@@ -145,17 +156,23 @@ Elke stap eindig met **'n git commit en 'n push**.
 
 ---
 
-### Stap 1 — Geraamte
-`VisiteScanApp.swift`, `ContentView.swift`, `BusinessCard.swift`, `Localizable.strings`. `Item.swift` uit.
-**Toets:** app loop, drie oortjies wissel, geen crash.
+### Stap 1 — Geraamte ✅
+`VisiteScanApp.swift`, `ContentView.swift`, `BusinessCard.swift`. `Item.swift` uit.
+`Localizable.strings` weggelaat — moderne Xcode gebruik String Catalogs, wat SwiftUI se letterlike teks outomaties uittrek. Skuif na Stap 8.
+**Getoets:** app loop, drie oortjies wissel.
 
-### Stap 2 — Skandeer
-`DocumentScanner.swift` (1:1 uit FuelScan) + `NewCardView.swift` se fotogedeelte — dieselfde vier knoppies: **Kamera / Skandeer / Galery / Lêers**.
-**Toets:** 'n kaartjie kan afgeneem word en die prentjie wys.
+### Stap 2 — Skandeer ✅
+`DocumentScanner.swift` en `ImagePickers.swift` (1:1 uit FuelScan) + `NewCardView.swift` se fotogedeelte — vier knoppies: **Kamera / Skandeer / Galery / Lêers**.
+Bo FuelScan: die Kamera- en Skandeer-knoppies word gedeaktiveer waar die toestel hulle nie het nie (`UIImagePickerController` crash met `.camera` in die simulator).
+`Info.plist` kry `NSCameraUsageDescription` + `NSPhotoLibraryUsageDescription`.
+Erich se app-ikoon bygevoeg as `AppIcon` en `AppLogo`.
+**Getoets:** skandeerder werk op die iPhone. Fokus sukkel in kunslig — tik om te fokus en druk self die sluiter eerder as om vir outo-vasvang te wag.
 
-### Stap 3 — Rou OCR
-`CardOCRService.recognizeText()` — FuelScan se `RecognizeTextRequest`-patroon (af + en).
-**Toets:** skandeer, wys die rou teks. Nog geen ontleding nie.
+### Stap 3 — Rou OCR ✅
+`CardOCRService` — FuelScan se `RecognizeTextRequest`-patroon (af + en), **maar dit gee `[RecognizedLine]` terug in plaas van 'n plat string**, met elke reël se blokkie en tekshoogte. Sonder daardie hoogtes sou Stap 4 net op sleutelwoorde kon staatmaak.
+`sortedTopToBottom` stel Vision se herkenningsvolgorde reg na die visuele volgorde.
+`NewCardView` wys die reëls met hul hoogte as persentasie — 'n tydelike afdeling wat Stap 4 vervang.
+**Toets uitstaande:** is die grootste reël die naam, of soms die logo?
 
 ### Stap 4 — Ontleding ⭐ *(oorspronklike fase `01-parsing-quality`)*
 
@@ -208,11 +225,11 @@ App-ikoon, Afrikaanse vertalings deur, `SettingsView` se Oor-afdeling, weergawe 
 ## 5. Volgorde
 
 ```
-0. Git + projek     ← die stap wat verlede keer ontbreek het   [grootliks klaar]
-1. Geraamte
-2. Skandeer
-3. Rou OCR
-4. Ontleding        ← die moeilikste, waar die waarde lê
+0. Git + projek     ✅  (push nog uitstaande — sien §7)
+1. Geraamte         ✅
+2. Skandeer         ✅
+3. Rou OCR          ✅
+4. Ontleding        ← ONS IS HIER. Die moeilikste, waar die waarde lê
 5. Contacts.app     ← eerste prys
 6. Geskiedenis + duplikate
 7. vCard-uitvoer
@@ -233,3 +250,32 @@ Stappe 0–3 is meganies (FuelScan-kode hergebruik). Stap 4 is die werk. Stappe 
 | 5 | Toets op die regte iPhone (die simulator se adresboek is leeg) |
 | 5 | Besluit: bevestigingskerm (aanbeveel) of stil-stoor |
 | 9 | iCloud-houer byvoeg in Xcode; tweede toestel om sinkronisering te toets |
+
+---
+
+## 7. Uitstaande
+
+### ⚠️ Die push — doen dit eerste
+
+Niks is nog na GitHub nie. Al ses commits sit net op die G40. **Dit is presies die situasie wat die vorige weergawe van hierdie app gekos het.**
+
+`gh` kan nie sy token uit die macOS-sleutelhanger kry nie. Die netwerk is heeltemal reg (IPv4 en IPv6 gee albei HTTP 200 na `api.github.com`) — `gh` se "error connecting" is misleidend; die token is eenvoudig weg. `~/.config/gh/hosts.yml` het die gebruiker `Erichzar` maar geen `oauth_token` nie.
+
+In Terminal:
+
+```bash
+gh auth logout --hostname github.com
+gh auth login          # GitHub.com → HTTPS → Yes → Login with a web browser
+gh auth status         # moet skoon lyk
+
+cd "/Volumes/PRO-G40/ACTIVE/08 AI/Projects/01 Apps/VisiteScan"
+gh repo create VisiteScan --private --source=. --remote=origin --push
+```
+
+As dit weer by die sleutelhanger vashaak: `gh auth login --insecure-storage` (token as gewone teks in `hosts.yml`, net vir jou leesbaar).
+
+### Kleiner dinge
+
+- Los `visitescan-iOS-Default-1024@1x.png` in die projekwortel is oorbodig — dieselfde beeld sit in `AppIcon` én `AppLogo`. Erich moet sê of dit uit kan.
+- Die ou leë dop by `02 Herstel nodig/Visitescan` moet weg **na die asblik, nooit hard-delete nie** — eers nadat die push geslaag het.
+- Erich se `visitescan.icon` (Icon Composer) is nie ingedraad nie; die app gebruik die PNG uit die asset-katalogus. FuelScan doen presies dieselfde. Wil hy die gelaagde ikoon hê, moet die `.icon` in Xcode ingesleep word.
