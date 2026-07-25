@@ -23,6 +23,9 @@ struct NewCardView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedImage: UIImage?
 
+    @State private var isProcessing = false
+    @State private var recognizedLines: [RecognizedLine] = []
+
     /// Die kamera bestaan nie in die simulator nie — moenie dit daar aanbied nie,
     /// want UIImagePickerController crash met sourceType .camera.
     private let cameraAvailable = UIImagePickerController.isSourceTypeAvailable(.camera)
@@ -104,8 +107,25 @@ struct NewCardView: View {
                     .listRowInsets(EdgeInsets())
 
                     if selectedImage != nil {
+                        Button {
+                            readCard()
+                        } label: {
+                            if isProcessing {
+                                HStack {
+                                    ProgressView()
+                                    Text("Besig om te lees…")
+                                }
+                                .frame(maxWidth: .infinity)
+                            } else {
+                                Label("Lees kaartjie", systemImage: "text.viewfinder")
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .disabled(isProcessing)
+
                         Button(role: .destructive) {
                             selectedImage = nil
+                            recognizedLines = []
                         } label: {
                             Label("Verwyder foto", systemImage: "trash")
                         }
@@ -115,6 +135,28 @@ struct NewCardView: View {
                 } footer: {
                     if selectedImage == nil {
                         Text("Skandeer werk die beste — dit sny die kaartjie uit en regideer die perspektief.")
+                    }
+                }
+
+                // MARK: Rou OCR-teks
+                // Stap 3 wys die teks net soos dit gelees is. Stap 4 vervang
+                // hierdie afdeling met behoorlike velde.
+                if !recognizedLines.isEmpty {
+                    Section {
+                        ForEach(CardOCRService.sortedTopToBottom(recognizedLines)) { line in
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(line.text)
+                                Spacer()
+                                Text(String(format: "%.0f%%", line.height * 100))
+                                    .font(.caption2)
+                                    .monospacedDigit()
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                    } header: {
+                        Text("Gelees — \(recognizedLines.count) reëls")
+                    } footer: {
+                        Text("Die persentasie is die reël se tekshoogte. Die grootste reël is gewoonlik die naam — dit is waarop Stap 4 gaan bou.")
                     }
                 }
             }
@@ -139,6 +181,20 @@ struct NewCardView: View {
                     }
                     selectedPhoto = nil
                 }
+            }
+        }
+    }
+
+    // MARK: Lees
+
+    private func readCard() {
+        guard let image = selectedImage else { return }
+        isProcessing = true
+        Task {
+            let lines = await CardOCRService.recognizeLines(from: image)
+            await MainActor.run {
+                recognizedLines = lines
+                isProcessing = false
             }
         }
     }
