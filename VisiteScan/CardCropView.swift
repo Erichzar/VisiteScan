@@ -117,6 +117,13 @@ struct CardCropView: View {
         CGPoint(x: 0.92, y: 0.92), CGPoint(x: 0.08, y: 0.92)
     ]
 
+    /// Die volle foto, tot in die hoeke. "Hele foto" moet werklik alles beteken,
+    /// anders sny dit stilweg 'n rand van die kaartjie af.
+    private static let fullCorners = [
+        CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 0),
+        CGPoint(x: 1, y: 1), CGPoint(x: 0, y: 1)
+    ]
+
     init(image: UIImage,
          onDone: @escaping (UIImage) -> Void,
          onCancel: @escaping () -> Void) {
@@ -134,10 +141,19 @@ struct CardCropView: View {
                     let frame = displayRect(in: geometry.size)
 
                     ZStack(alignment: .topLeading) {
+                        Color.black
+
+                        // Die foto word uitdruklik in `frame` geplaas in plaas
+                        // van deur die ZStack se belyning. Die hoeke word teen
+                        // dieselfde `frame` bereken, so die twee kan nie meer
+                        // uitmekaar loop nie — presies wat vroeër gebeur het.
                         Image(uiImage: working)
                             .resizable()
                             .scaledToFit()
+                            .frame(width: frame.width, height: frame.height)
+                            .offset(x: frame.minX, y: frame.minY)
 
+                        dimOutsideQuad(in: frame, canvas: geometry.size)
                         quadOutline(in: frame)
 
                         ForEach(0..<4, id: \.self) { index in
@@ -145,8 +161,8 @@ struct CardCropView: View {
                         }
                     }
                     .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
                 }
-                .background(Color.black)
 
                 controls
             }
@@ -181,7 +197,7 @@ struct CardCropView: View {
                 detect()
             }
             controlButton("Hele foto", icon: "rectangle.dashed") {
-                withAnimation(.easeOut(duration: 0.2)) { corners = Self.defaultCorners }
+                withAnimation(.easeOut(duration: 0.2)) { corners = Self.fullCorners }
             }
         }
         .padding(.vertical, 12)
@@ -208,6 +224,20 @@ struct CardCropView: View {
         .foregroundStyle(Color.accentColor)
     }
 
+    /// Verdonker alles buite die vierhoek. Sonder dit moet 'n mens raai of die
+    /// raampie die hele kaartjie dek; nou is dit met een oogopslag sigbaar.
+    private func dimOutsideQuad(in frame: CGRect, canvas: CGSize) -> some View {
+        Path { path in
+            path.addRect(CGRect(origin: .zero, size: canvas))
+            let points = corners.map { position($0, in: frame) }
+            path.move(to: points[0])
+            for point in points.dropFirst() { path.addLine(to: point) }
+            path.closeSubpath()
+        }
+        .fill(Color.black.opacity(0.5), style: FillStyle(eoFill: true))
+        .allowsHitTesting(false)
+    }
+
     private func quadOutline(in frame: CGRect) -> some View {
         Path { path in
             let points = corners.map { position($0, in: frame) }
@@ -222,7 +252,13 @@ struct CardCropView: View {
         Circle()
             .fill(.white)
             .overlay(Circle().stroke(Color.accentColor, lineWidth: 3))
-            .frame(width: 24, height: 24)
+            .frame(width: 26, height: 26)
+            // 'n Hoek sit dikwels op die foto se rand, waar die helfte van die
+            // kolletjie buite lê. Die groter raakvlak maak hom steeds vatbaar.
+            .frame(width: 48, height: 48)
+            .contentShape(Circle())
+            // Die sleep-gebaar sit ná .position, sodat value.location in die
+            // ZStack se ruimte val en nie in die kolletjie s'n nie.
             .position(position(corners[index], in: frame))
             .gesture(
                 DragGesture()
