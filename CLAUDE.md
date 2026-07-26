@@ -13,35 +13,28 @@ dit in **Contacts.app** stoor (eerste prys) of as **vCard `.vcf`** uitvoer.
 SwiftUI + SwiftData + Vision. Erich is 'n amateur-programmeerder — verduidelik
 stap vir stap, en skryf in Afrikaans.
 
-## Waar ons is (25 Julie 2026)
+## Waar ons is (26 Julie 2026)
 
-Stappe 0–3 klaar (`git log --oneline` vir die presiese lys).
-**Volgende: Stap 4 — die veldontleding.**
+Stappe 0–4 klaar, plus die onbeplande Stap 2½ (makro-kamera en uitsny-skerm —
+die makro-foto klop die dokumentskandeerder duidelik op werklike kaartjies).
+**Die push is gedoen:** alles staan op `github.com/Erichzar/VisiteScan`.
 
-Erich sou 'n paar werklike kaartjies skandeer en kyk of die reël met die
-**grootste tekshoogte** die persoon se naam is, en of dit soms die maatskappy
-se logo-teks is. **Vra hom wat hy gesien het voor jy Stap 4 bou** — daardie
-antwoord bepaal of die naamherkenning 'n uitsluitingsreël vir logo's nodig het.
+**Volgende: Stap 5 (vloei) en dan Stap 6 (veldlys met skuiwers).** Dit is die
+herontwerp wat Erich op 26 Julie gevra het: een groot skandeer-knoppie, OCR
+wat vanself loop, en die uitslag as 'n Contacts-agtige veldlys waar 'n
+verkeerd geplaaste reël met die driestrepie-handvatsel na die regte veld
+gesleep word. PLAN.md §4 (Stap 5 en 6) het die volle spesifikasie —
+veral die toewysing-per-reël-model in Stap 6 is nie onderhandelbaar nie.
+
+Toetsing gebeur oor **Remote Control**: Erich dryf die sessie van sy iPhone
+(16 Pro) af en stuur skermgrepe direk in. Hou antwoorde bondig.
 
 ## Uitstaande
 
-1. **Niks is nog gepush nie**, en `gh auth status` sê nou *"not logged into any
-   GitHub hosts"* — die `logout` het gewerk, die `login` nie. Die netwerk is
-   heeltemal reg (IPv4 én IPv6 gee HTTP 200 na `api.github.com`); dit was nog
-   altyd die sleutelhanger-token. In Terminal:
-   ```bash
-   gh auth login          # GitHub.com → HTTPS → Yes → Login with a web browser
-   gh auth status         # moet skoon lyk
-   cd "/Volumes/PRO-G40/ACTIVE/08 AI/Projects/01 Apps/VisiteScan"
-   gh repo create VisiteScan --private --source=. --remote=origin --push
-   ```
-   Haak dit weer vas: `gh auth login --insecure-storage`.
-   *Dit is die belangrikste uitstaande item — die vorige weergawe van hierdie
-   app is verloor juis omdat die kode nooit gepush is nie.*
-2. Los `visitescan-iOS-Default-1024@1x.png` in die projekwortel is oorbodig
+1. Los `visitescan-iOS-Default-1024@1x.png` in die projekwortel is oorbodig
    (dieselfde beeld is in AppIcon en AppLogo). Erich moet nog sê of dit uit kan.
-3. Die ou leë dop by `02 Herstel nodig/Visitescan` moet weg — **na die asblik,
-   nooit hard-delete nie** — sodra die push geslaag het.
+2. Die ou leë dop by `02 Herstel nodig/Visitescan` moet weg — **na die asblik,
+   nooit hard-delete nie** — wag vir Erich se sein.
 
 ## Werkwyse
 
@@ -57,12 +50,9 @@ antwoord bepaal of die naamherkenning 'n uitsluitingsreël vir logo's nodig het.
 - **Moenie die git-outeur oorskryf nie.** Erich se globale config is
   `Erichzar <167574906+Erichzar@users.noreply.github.com>` — laat `git commit`
   dit self gebruik. (Vroeër is `-c user.name="Erich Lutz"` afgedwing, uit sy ou
-  rugsteun-skrip oorgeneem; hy moes een commit met die hand regstel.)
-  Commits b8b1d6e t/m 2c31d52 dra nog die verkeerde outeur. Niks is gepush nie,
-  so dit kan met een opdrag reggemaak word — **vra hom eers**:
-  ```bash
-  git rebase --root --exec 'git commit --amend --no-edit --reset-author'
-  ```
+  rugsteun-skrip oorgeneem.) Commits b8b1d6e t/m 2c31d52 dra die verkeerde
+  outeur, maar die geskiedenis is intussen gepush — regstel sou 'n force-push
+  verg. **Los dit, tensy Erich uitdruklik anders sê.**
 - Die projek gebruik Xcode 16+ se **gesinkroniseerde lêergroepe**, so enige
   `.swift` wat in `VisiteScan/` beland is outomaties deel van die teiken —
   moenie aan `project.pbxproj` karring nie.
