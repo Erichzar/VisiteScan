@@ -265,8 +265,10 @@ extension MacroCameraController: AVCapturePhotoCaptureDelegate {
               let data = photo.fileDataRepresentation(),
               let image = UIImage(data: data) else { return }
 
+        // normalizedUp() want 'n kamerafoto kom as .right, en cgImage ignoreer
+        // die oriëntasie — sonder dit sou Vision die teks sywaarts sien.
         DispatchQueue.main.async { [weak self] in
-            self?.onCapture?(image)
+            self?.onCapture?(image.normalizedUp())
         }
     }
 }

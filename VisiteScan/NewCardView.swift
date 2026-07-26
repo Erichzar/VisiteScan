@@ -17,12 +17,21 @@ enum ActiveSheet: Identifiable {
     var id: Self { self }
 }
 
+/// 'n Vars foto wat nog uitgesny moet word. UIImage is nie Identifiable nie,
+/// en `.fullScreenCover(item:)` verlang dit.
+struct CropCandidate: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
 struct NewCardView: View {
 
     @State private var activeSheet: ActiveSheet?
     @State private var showPhotosPicker = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedImage: UIImage?
+    @State private var macroCapture: UIImage?
+    @State private var cropCandidate: CropCandidate?
 
     @State private var isProcessing = false
     @State private var recognizedLines: [RecognizedLine] = []
@@ -106,7 +115,13 @@ struct NewCardView: View {
                     }
                     .listRowInsets(EdgeInsets())
 
-                    if selectedImage != nil {
+                    if let image = selectedImage {
+                        Button {
+                            cropCandidate = CropCandidate(image: image)
+                        } label: {
+                            Label("Sny uit / draai", systemImage: "crop.rotate")
+                        }
+
                         Button {
                             readCard()
                         } label: {
@@ -164,12 +179,34 @@ struct NewCardView: View {
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
                 case .macro:
-                    MacroCameraView(image: $selectedImage)
+                    MacroCameraView(image: $macroCapture)
                         .ignoresSafeArea()
                 case .scanner:
                     DocumentScanner(image: $selectedImage)
                 case .files:
                     DocumentPickerView(image: $selectedImage)
+                }
+            }
+            // 'n Vars makro-foto gaan reguit na die uitsny-skerm — dieselfde
+            // vloei as die skandeerder, wat ook eers sy hersienskerm wys.
+            .fullScreenCover(item: $cropCandidate) { candidate in
+                CardCropView(
+                    image: candidate.image,
+                    onDone: { cropped in
+                        selectedImage = cropped
+                        recognizedLines = []
+                        cropCandidate = nil
+                    },
+                    onCancel: {
+                        if selectedImage == nil { selectedImage = candidate.image }
+                        cropCandidate = nil
+                    }
+                )
+            }
+            .onChange(of: macroCapture) {
+                if let macroCapture {
+                    cropCandidate = CropCandidate(image: macroCapture)
+                    self.macroCapture = nil
                 }
             }
             .photosPicker(isPresented: $showPhotosPicker, selection: $selectedPhoto, matching: .images)
