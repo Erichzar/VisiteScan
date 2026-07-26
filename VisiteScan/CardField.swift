@@ -4,27 +4,31 @@
 //
 //  Stap 6 se kernmodel.
 //
-//  Tot en met Stap 5 het die ontleder stringe teruggegee. Dit werk om te wys,
-//  maar nie om te skuif nie: sodra 'n mens 'n reël na 'n ander veld sleep, moet
-//  jy weet *watter* reël uit die ou veld se string kom en waar hy in die nuwe
-//  een inpas. Dit word string-gemors.
+//  Die skerm is twee kolomme: 'n **vaste lys veldname links** wat nooit beweeg
+//  nie, en die gelese **waardes regs** wat geskuif word. Een waarde per veld.
 //
-//  Daarom draai die model om. Elke herkende reël kry 'n veld toegewys, en die
-//  veldwaardes word uit die toewysings *afgelei*. Sleep = een reël se veld
-//  verander; alles anders herbereken homself.
+//  Daaruit volg die belangrikste reël: skuif jy 'n waarde in 'n veld wat klaar
+//  besit is, word die vorige inwoner **verdring na Temp**. Dit gebeur in
+//  dieselfde gebaar — 'n mens sleep een keer, en die verdringing volg vanself.
+//  Temp is 'n parkeerplek, nie 'n asblik nie: die waarde wag daar om later
+//  geplaas te word.
+//
+//  'n Waarde is nie noodwendig een OCR-reël nie. "Erich" bo "Lutz" is twee
+//  reëls maar één naam, so die ontleder voeg aangrensende reëls van dieselfde
+//  veld saam voor hulle hier beland.
 //
 
 import Foundation
 
 // MARK: - Die velde
 
-/// Die velde soos Contacts hulle wys, plus `unused` vir wat oorbly.
+/// Die vaste kolom links, in Contacts se volgorde. `temp` staan heel onder.
 enum CardField: String, CaseIterable, Identifiable, Codable {
     case name, jobTitle, company
     case mobile, phone, email, website
-    case street, city, postalCode
+    case street, suburb, city, postalCode
     case notes
-    case unused
+    case temp, combo
 
     var id: String { rawValue }
 
@@ -37,11 +41,13 @@ enum CardField: String, CaseIterable, Identifiable, Codable {
         case .phone:      "Telefoon"
         case .email:      "E-pos"
         case .website:    "Webwerf"
-        case .street:     "Straat / Posbus"
+        case .street:     "Straat"
+        case .suburb:     "Voorstad"
         case .city:       "Dorp"
         case .postalCode: "Poskode"
-        case .notes:      "Aantekeninge"
-        case .unused:     "Nie gebruik nie"
+        case .notes:      "Nota"
+        case .temp:       "Temp"
+        case .combo:      "Kombo"
         }
     }
 
@@ -55,81 +61,119 @@ enum CardField: String, CaseIterable, Identifiable, Codable {
         case .email:      "envelope"
         case .website:    "globe"
         case .street:     "mappin.and.ellipse"
+        case .suburb:     "house"
         case .city:       "building.columns"
         case .postalCode: "number"
         case .notes:      "note.text"
-        case .unused:     "tray"
+        case .temp:       "tray"
+        case .combo:      "arrow.triangle.merge"
         }
     }
 
-    /// Meerreëlige velde word met 'n komma saamgevoeg; die res met 'n spasie.
-    /// 'n Naam oor twee reëls is "Erich Lutz", 'n adres is "56 Tarentaal Str., Eenheid 3".
-    var joinSeparator: String {
-        switch self {
-        case .street, .notes: ", "
-        default: " "
-        }
-    }
+    /// Die vaste velde links. Temp en Kombo is werkbanke, nie velde nie.
+    static var fixed: [CardField] { allCases.filter { $0 != .temp && $0 != .combo } }
 
-    /// Die groepe waarin die skerm die velde wys — Contacts se volgorde.
+    /// Werkbanke hou meer as een waarde en verdring niks.
+    var isWorkbench: Bool { self == .temp || self == .combo }
+
+    /// Die groepe waarin die skerm die vaste velde wys.
     static let groups: [(title: String, fields: [CardField])] = [
-        ("Wie",      [.name, .jobTitle, .company]),
-        ("Kontak",   [.mobile, .phone, .email, .website]),
-        ("Adres",    [.street, .city, .postalCode]),
-        ("Ekstra",   [.notes])
+        ("Wie",    [.name, .jobTitle, .company]),
+        ("Kontak", [.mobile, .phone, .email, .website]),
+        ("Adres",  [.street, .suburb, .city, .postalCode]),
+        ("Ekstra", [.notes])
     ]
+
+    /// Wanneer die ontleder verskeie reëls aan dieselfde veld gee, hoe hulle
+    /// saamgevoeg word. Temp en Nota bly aparte rye — daar tel elke reël apart.
+    var joinSeparator: String { " " }
+
+    var coalesces: Bool {
+        switch self {
+        case .temp, .combo, .notes: false
+        default:                    true
+        }
+    }
 }
 
-// MARK: - Een reël, een veld
+// MARK: - Een waarde
 
-/// 'n Herkende reël saam met die veld waarheen dit gaan. Die teks is apart van
-/// `line.text` sodat 'n mens 'n OCR-fout kan regtik sonder om die herkenning
-/// se oorspronklike te verloor.
-struct LineAssignment: Identifiable {
-    let line: RecognizedLine
-    var field: CardField
+/// Een waarde in een veld. Die teks is wysigbaar sodat 'n OCR-fout reggetik kan
+/// word; `height` is die grootste bron-reël se tekshoogte, wat die ontleder se
+/// naam-teenoor-firma-keuse dryf.
+struct CardValue: Identifiable {
+    let id = UUID()
     var text: String
-
-    var id: UUID { line.id }
-
-    init(line: RecognizedLine, field: CardField) {
-        self.line = line
-        self.field = field
-        self.text = line.text
-    }
+    var field: CardField
+    var height: CGFloat = 0
 }
 
-// MARK: - Afgeleide waardes
+// MARK: - Skuif, met verdringing
 
-extension Array where Element == LineAssignment {
+extension Array where Element == CardValue {
 
-    /// Die veld se waarde: al sy reëls, in leesvolgorde, saamgevoeg.
-    func value(for field: CardField) -> String {
-        self.filter { $0.field == field }
-            .map(\.text)
-            .filter { !$0.isEmpty }
-            .joined(separator: field.joinSeparator)
+    /// Die waarde in 'n veld, of nil. Elke vaste veld hou hoogstens een.
+    func value(in field: CardField) -> CardValue? {
+        first { $0.field == field }
     }
 
-    func lines(for field: CardField) -> [LineAssignment] {
-        self.filter { $0.field == field }
+    func values(in field: CardField) -> [CardValue] {
+        filter { $0.field == field }
     }
 
-    /// Die volledige kaartjie, afgelei uit die toewysings.
+    func text(for field: CardField) -> String {
+        values(in: field).map(\.text).joined(separator: field.joinSeparator)
+    }
+
+    /// Skuif 'n waarde na 'n veld.
+    ///
+    /// Drie gedrae, na gelang van die teiken:
+    /// - **Kombo** smelt saam: die inkomende teks word agteraan die een wat
+    ///   daar staan gevoeg, en die twee word een waarde. So kry 'n mens
+    ///   "56 Tarentaal Str." en "Eenheid 3" in één straatveld.
+    /// - **Temp** neem net op; dit verdring niks en hou soveel waardes as nodig.
+    /// - **'n Gewone veld** hou hoogstens een waarde, so wat daar was, word
+    ///   na Temp verdring. Dieselfde gebaar, twee bewegings.
+    mutating func move(_ id: UUID, to field: CardField) {
+        guard let source = firstIndex(where: { $0.id == id }),
+              self[source].field != field else { return }
+
+        if field == .combo,
+           let existing = firstIndex(where: { $0.field == .combo && $0.id != id }) {
+            self[existing].text += " " + self[source].text
+            self[existing].height = Swift.max(self[existing].height, self[source].height)
+            remove(at: source)
+            return
+        }
+
+        if !field.isWorkbench,
+           let occupant = firstIndex(where: { $0.field == field && $0.id != id }) {
+            self[occupant].field = .temp
+        }
+        self[source].field = field
+    }
+
+    /// Die kaartjie se velde as stringe, afgelei uit die waardes.
     var card: ParsedCard {
         var card = ParsedCard()
-        card.name = value(for: .name)
-        card.jobTitle = value(for: .jobTitle)
-        card.company = value(for: .company)
-        card.mobile = value(for: .mobile)
-        card.phone = value(for: .phone)
-        card.email = value(for: .email)
-        card.website = value(for: .website)
-        card.street = value(for: .street)
-        card.city = value(for: .city)
-        card.postalCode = value(for: .postalCode)
-        card.notes = value(for: .notes)
+        card.name = text(for: .name)
+        card.jobTitle = text(for: .jobTitle)
+        card.company = text(for: .company)
+        card.mobile = text(for: .mobile)
+        card.phone = text(for: .phone)
+        card.email = text(for: .email)
+        card.website = text(for: .website)
+        card.street = text(for: .street)
+        card.suburb = text(for: .suburb)
+        card.city = text(for: .city)
+        card.postalCode = text(for: .postalCode)
+        card.notes = values(in: .notes).map(\.text).joined(separator: "\n")
         return card
+    }
+
+    /// Alles wat gelees is, in leesvolgorde — vir `BusinessCard.rawText`.
+    var rawText: String {
+        map(\.text).joined(separator: "\n")
     }
 }
 
@@ -144,6 +188,7 @@ struct ParsedCard {
     var email = ""
     var website = ""
     var street = ""
+    var suburb = ""
     var city = ""
     var postalCode = ""
     var notes = ""

@@ -47,10 +47,10 @@ struct NewCardView: View {
 
     @State private var isProcessing = false
 
-    /// Elke herkende reël met sy veld. Dit is die enigste bron van waarheid vir
-    /// die uitslag — die veldwaardes word hieruit afgelei (`assignments.card`),
-    /// en die rou teks ook, want elke reël se oorspronklike bly in `line.text`.
-    @State private var assignments: [LineAssignment] = []
+    /// Die gelese waardes, elkeen in 'n veld. Dit is die enigste bron van
+    /// waarheid vir die uitslag — die kaartjie se velde word hieruit afgelei
+    /// (`values.card`), en die rou teks ook (`values.rawText`).
+    @State private var values: [CardValue] = []
 
     /// Die simulator het geen kamera nie — moenie die knoppie daar aanbied nie.
     private let cameraAvailable = AVCaptureDevice.default(for: .video) != nil
@@ -75,9 +75,7 @@ struct NewCardView: View {
                     }
                 }
 
-                if !assignments.isEmpty {
-                    CardFieldsView(assignments: $assignments)
-
+                if !values.isEmpty {
                     Section {
                         Button {
                             swapNameAndCompany()
@@ -85,6 +83,8 @@ struct NewCardView: View {
                             Label("Ruil naam ↔ firma", systemImage: "arrow.up.arrow.down")
                         }
                     }
+
+                    CardFieldsView(values: $values)
                 }
             }
             .navigationTitle("Nuwe kaartjie")
@@ -229,13 +229,13 @@ struct NewCardView: View {
     /// gebruiker het klaar gesê wat hy wil hê deur die foto te neem.
     private func accept(_ image: UIImage) {
         selectedImage = image
-        assignments = []
+        values = []
         isProcessing = true
 
         Task {
             let lines = await CardOCRService.recognizeLines(from: image)
             await MainActor.run {
-                assignments = CardParser.assign(lines)
+                values = CardParser.values(lines)
                 isProcessing = false
             }
         }
@@ -243,7 +243,7 @@ struct NewCardView: View {
 
     private func clear() {
         selectedImage = nil
-        assignments = []
+        values = []
     }
 
     /// Die persoon se naam en die firma is albei groot gedruk, so die ontleder
@@ -251,10 +251,10 @@ struct NewCardView: View {
     /// oor te sleep.
     private func swapNameAndCompany() {
         withAnimation(.snappy) {
-            for index in assignments.indices {
-                switch assignments[index].field {
-                case .name:    assignments[index].field = .company
-                case .company: assignments[index].field = .name
+            for index in values.indices {
+                switch values[index].field {
+                case .name:    values[index].field = .company
+                case .company: values[index].field = .name
                 default:       break
                 }
             }

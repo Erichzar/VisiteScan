@@ -2,31 +2,39 @@
 //  CardFieldsView.swift
 //  VisiteScan
 //
-//  Stap 6: die uitslag as 'n veldlys in Contacts se volgorde, waar 'n reël wat
-//  verkeerd geplaas is na die regte veld geskuif word.
+//  Stap 6: twee kolomme.
 //
-//  Twee maniere om te skuif, doelbewus albei:
+//      ┌──────────┬────────────────────────┐
+//      │ Naam     │ Park Str             ≡ │
+//      │ Firma    │ Piet Lutz            ≡ │
+//      │ E-pos    │ piet@…               ≡ │
+//      └──────────┴────────────────────────┘
+//      ┌──────────┬────────────────────────┐
+//      │ Temp     │ die res              ≡ │
+//      └──────────┴────────────────────────┘
 //
-//  1. **Sleep** aan die driestrepie-handvatsel — dit is wat Erich gevra het, en
-//     dit is die vinnigste as 'n mens die lys sien.
-//  2. **Tik** op die veldnaam regs — 'n kieslys van al die velde. Sleep tussen
-//     afdelings in 'n List is fyn werk met 'n duim; hierdie een mis nooit.
+//  Links die vaste veldname — hulle beweeg nooit. Regs die gelese waardes, wat
+//  aan die ≡ na 'n ander veld gesleep word. Sit daar klaar iets, word dít na
+//  Temp verdring; die twee bewegings is een gebaar.
 //
-//  Die twee is nie oorbodig nie: die sleep is die gebaar wat lekker voel, die
-//  kieslys die een wat werk wanneer die kaartjie lank is en die regte veld
-//  buite die skerm lê.
+//  Temp is 'n parkeerplek, nie 'n asblik nie. 'n Waarde wat daar beland, wag om
+//  later geplaas te word — en 'n kaartjie het altyd teks wat nêrens hoort nie
+//  (slagspreuke, registrasienommers), so Temp is ook nie 'n foutlys nie.
 //
 
 import SwiftUI
 
 struct CardFieldsView: View {
 
-    @Binding var assignments: [LineAssignment]
+    @Binding var values: [CardValue]
 
-    /// Die reël wat nou gesleep word — sodat sy ry dof word terwyl hy "weg" is.
-    @State private var draggingID: UUID?
+    /// Die waarde wat nou gesleep word, sodat sy ry dof word terwyl hy "weg" is.
+    @State private var dragging: UUID?
+
+    private let labelWidth: CGFloat = 88
 
     var body: some View {
+
         ForEach(CardField.groups, id: \.title) { group in
             Section {
                 ForEach(group.fields) { field in
@@ -37,15 +45,30 @@ struct CardFieldsView: View {
             }
         }
 
-        // Alles wat die ontleder nie kon plaas nie. Dit is nie 'n fout nie —
-        // 'n kaartjie het altyd teks wat in geen veld hoort nie (slagspreuke,
-        // registrasienommers). Maar dit is ook waar 'n gemiste veld skuil.
+        workbench(.temp,
+                  hint: "Sleep aan ≡ om 'n waarde na 'n ander veld te skuif — wat daar was, kom hierheen. Tik op die teks self om 'n leesfout reg te maak.")
+
+        workbench(.combo,
+                  hint: "Sleep twee waardes hierheen en hulle smelt saam tot een — vir wanneer 'n adres of naam oor twee reëls geloop het. Sleep die resultaat dan na sy veld.")
+    }
+
+    // MARK: Werkbanke — Temp en Kombo
+
+    @ViewBuilder
+    private func workbench(_ field: CardField, hint: String) -> some View {
         Section {
-            fieldRow(.unused)
+            let parked = values.values(in: field)
+            if parked.isEmpty {
+                emptyRow(field)
+            } else {
+                ForEach(parked) { value in
+                    row(field: field, value: value)
+                }
+            }
         } header: {
-            Text("Nie gebruik nie")
+            Text(field.label)
         } footer: {
-            Text("Sleep aan ≡ om 'n reël na 'n ander veld te skuif, of tik regs op die veldnaam. Tik op die teks self om 'n OCR-fout reg te maak.")
+            Text(hint)
         }
     }
 
@@ -53,102 +76,92 @@ struct CardFieldsView: View {
 
     @ViewBuilder
     private func fieldRow(_ field: CardField) -> some View {
-        let rows = assignments.lines(for: field)
-
-        VStack(alignment: .leading, spacing: 6) {
-            Label(field.label, systemImage: field.icon)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if rows.isEmpty {
-                Text("—")
-                    .font(.callout)
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 2)
-            } else {
-                ForEach(rows) { row in
-                    lineRow(row, in: field)
-                }
-            }
-        }
-        .padding(.vertical, 2)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .dropDestination(for: String.self) { items, _ in
-            receive(items, into: field)
+        if let value = values.value(in: field) {
+            row(field: field, value: value)
+        } else {
+            emptyRow(field)
         }
     }
 
-    // MARK: Een reël
+    private func row(field: CardField, value: CardValue) -> some View {
+        HStack(spacing: 8) {
+            label(field)
 
-    private func lineRow(_ row: LineAssignment, in field: CardField) -> some View {
-        HStack(spacing: 10) {
-
-            // Die handvatsel. Dit is die sleepbare deel — nie die hele ry nie,
-            // want die teks moet tikbaar bly om te wysig.
-            Image(systemName: "line.3.horizontal")
-                .foregroundStyle(.tertiary)
-                .frame(width: 24, height: 32)
-                .contentShape(Rectangle())
-                .draggable(row.id.uuidString) {
-                    Text(row.text)
-                        .padding(8)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                }
-
-            TextField(field.label, text: binding(for: row.id))
+            TextField(field.label, text: binding(for: value.id))
                 .font(.callout)
-                .textInputAutocapitalization(field.capitalization)
                 .keyboardType(field.keyboard)
+                .textInputAutocapitalization(field.capitalization)
 
-            Menu {
-                Picker("Skuif na", selection: fieldBinding(for: row.id)) {
-                    ForEach(CardField.allCases) { target in
-                        Label(target.label, systemImage: target.icon).tag(target)
-                    }
-                }
-            } label: {
-                Image(systemName: "arrow.left.arrow.right")
-                    .font(.caption)
-                    .foregroundStyle(.tint)
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
-            }
+            handle(value)
         }
-        .opacity(draggingID == row.id ? 0.4 : 1)
+        .opacity(dragging == value.id ? 0.35 : 1)
+        .contentShape(Rectangle())
+        .dropDestination(for: String.self) { items, _ in
+            accept(items, into: field)
+        }
+    }
+
+    private func emptyRow(_ field: CardField) -> some View {
+        HStack(spacing: 8) {
+            label(field)
+
+            Text("—")
+                .font(.callout)
+                .foregroundStyle(.tertiary)
+
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+        .dropDestination(for: String.self) { items, _ in
+            accept(items, into: field)
+        }
+    }
+
+    // MARK: Onderdele
+
+    /// Die vaste kolom links. Vaste breedte, sodat die kolom 'n reguit lyn vorm
+    /// waarteen 'n mens kan mik terwyl jy sleep.
+    private func label(_ field: CardField) -> some View {
+        Label {
+            Text(field.label)
+        } icon: {
+            Image(systemName: field.icon)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .frame(width: labelWidth, alignment: .leading)
+    }
+
+    /// Net die handvatsel sleep — die teks moet tikbaar bly om te wysig.
+    private func handle(_ value: CardValue) -> some View {
+        Image(systemName: "line.3.horizontal")
+            .foregroundStyle(.tertiary)
+            .frame(width: 32, height: 34)
+            .contentShape(Rectangle())
+            .draggable(value.id.uuidString) {
+                Text(value.text)
+                    .lineLimit(1)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.thinMaterial, in: Capsule())
+            }
     }
 
     // MARK: Skuif
 
-    private func receive(_ items: [String], into field: CardField) -> Bool {
-        guard let first = items.first,
-              let id = UUID(uuidString: first),
-              let index = assignments.firstIndex(where: { $0.id == id }),
-              assignments[index].field != field else { return false }
-
-        withAnimation(.snappy) { assignments[index].field = field }
+    private func accept(_ items: [String], into field: CardField) -> Bool {
+        guard let first = items.first, let id = UUID(uuidString: first) else { return false }
+        withAnimation(.snappy) { values.move(id, to: field) }
         return true
     }
 
-    // MARK: Bindings
-
     private func binding(for id: UUID) -> Binding<String> {
         Binding(
-            get: { assignments.first { $0.id == id }?.text ?? "" },
-            set: { newValue in
-                guard let index = assignments.firstIndex(where: { $0.id == id }) else { return }
-                assignments[index].text = newValue
-            }
-        )
-    }
-
-    private func fieldBinding(for id: UUID) -> Binding<CardField> {
-        Binding(
-            get: { assignments.first { $0.id == id }?.field ?? .unused },
-            set: { newValue in
-                guard let index = assignments.firstIndex(where: { $0.id == id }) else { return }
-                withAnimation(.snappy) { assignments[index].field = newValue }
+            get: { values.first { $0.id == id }?.text ?? "" },
+            set: { newText in
+                guard let index = values.firstIndex(where: { $0.id == id }) else { return }
+                values[index].text = newText
             }
         )
     }

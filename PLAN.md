@@ -144,19 +144,37 @@ Die skanderings was dof: albei stelselkameras gebruik die groothoeklens, wat nie
 
 ### Stap 6 — Veldlys met skuiwers ✅ *(die kern van die herontwerp)*
 
-Erich se spesifikasie: die uitslag lyk soos die Contacts-app se veldlys, en 'n reël wat verkeerd geplaas is **skuif jy met die driestrepie-handvatsel na die regte veld**.
+Erich se skets (26 Julie) gee die vorm: **twee kolomme**.
 
-**Die argitektuur-verandering wat dit moontlik maak** (in `CardField.swift`): `CardParser` gee nie meer stringe terug nie maar `[LineAssignment]` — elke `RecognizedLine` gekoppel aan 'n `CardField` (of aan `.unused`). Die veldwaardes word uit die toewysings *afgelei* (`assignments.card`), nie andersom nie. Skuif = een reël se veld verander; alles herbereken homself. `ParsedCard` bestaan nog, maar as afgeleide waarde.
+```
+┌──────────┬────────────────────────┐
+│ Naam     │ Park Str             ≡ │
+│ Firma    │ Piet Lutz            ≡ │
+│ E-pos    │ piet@…               ≡ │
+└──────────┴────────────────────────┘
+   Temp    │ die res              ≡
+   Kombo   │ (werkbank)           ≡
+```
 
-**Die skerm** (`CardFieldsView.swift`): 'n afdeling per groep in Contacts se volgorde (Wie / Kontak / Adres / Ekstra), plus **"Nie gebruik nie"** onderaan. Elke veld is een ry wat sy reëls hou — 'n veld kan meer as een hê (straat; 'n naam oor twee reëls). Elke reël se teks bly tikbaar om 'n OCR-fout reg te maak.
+Links die **vaste veldname** — hulle beweeg nooit; hulle is die lyn waarteen 'n mens mik terwyl jy sleep. Regs die **gelese waardes**, wat aan die ≡ na 'n ander veld gesleep word.
 
-**Twee maniere om te skuif, albei doelbewus:**
-1. **Sleep** aan die ≡-handvatsel (`.draggable` / `.dropDestination`) — wat Erich gevra het, en die vinnigste as die lys sigbaar is.
-2. **Tik** die pyltjie regs vir 'n kieslys van al die velde — sleep tussen afdelings is fyn duimwerk, en dié een mis nooit, veral wanneer die teikenveld buite die skerm lê.
+**Die drie gedrae van `[CardValue].move(_:to:)`** — dit is die hele model:
 
-Die "Ruil naam ↔ firma"-knoppie bly: dit ruil al die `.name`- en `.company`-reëls gelyk om, in plaas van elkeen afsonderlik te sleep.
+| Teiken | Wat gebeur |
+|---|---|
+| 'n Gewone veld | Hou **hoogstens een** waarde. Wat daar was, word na **Temp verdring** — dieselfde gebaar, twee bewegings. |
+| **Temp** | Neem net op, verdring niks, hou soveel as nodig. 'n Parkeerplek, nie 'n asblik nie: 'n waarde wag daar om later geplaas te word, en 'n kaartjie het altyd teks wat nêrens hoort nie. |
+| **Kombo** | **Smelt saam.** Die inkomende teks word agteraan die een wat daar staan gevoeg en die twee word één waarde. Enige getal waardes kan so aanmekaar geryg word; sleep die resultaat dan na sy veld. |
 
-**Toets uitstaande:** sleep op die toestel — voel die ≡-gebaar reg, of is die kieslys in die praktyk die een wat gebruik word? Dit bepaal of die sleep bly.
+Kombo is die antwoord op meerreëlige velde. Sonder dit sou 'n veld self meerdere waardes moes hou, en dan hou die linkerkolom op om 'n vaste 1:1-lys te wees — wat die hele ontwerp is.
+
+**Die argitektuur wat dit dra** (`CardField.swift`): `CardParser.values(_:)` gee `[CardValue]` terug — elke waarde 'n teks in 'n veld. Die kaartjie se velde word daaruit **afgelei** (`values.card`), nie andersom nie, en die rou teks ook (`values.rawText`). Skuif is een waarde se veld verander; alles herbereken homself.
+
+'n Waarde is nie noodwendig een OCR-reël nie: die ontleder voeg aangrensende reëls van dieselfde veld saam, sodat "Erich" bo "Lutz" as één naam "Erich Lutz" aankom. Elke waarde se teks bly tikbaar om 'n leesfout reg te maak.
+
+**Voorstad** is by die adresvelde gevoeg. 'n SA-adres loop van bo na onder al hoe wyer — straat, voorstad, dorp, poskode — en sonder daardie veld sou "Die Boord" by 'n Stellenbosch-adres verdring word terwyl dit wel 'n plek het.
+
+**Toets uitstaande:** die sleep-gebaar op die toestel; of die verdringing na Temp voel soos wat verwag word; en of Kombo se onmiddellike saamsmelting reg voel, of eerder 'n "voeg saam"-knoppie moet hê (nou is die enigste manier terug om die teks te wysig).
 
 ### Stap 7 — Stoor 🎯 *(eerste prys)*
 

@@ -58,8 +58,11 @@ enum CardParser {
 
     // MARK: Ingang
 
-    /// Elke reël, van bo na onder, met die veld waarheen die ontleder dink hy gaan.
-    static func assign(_ lines: [RecognizedLine]) -> [LineAssignment] {
+    /// Die gelese reëls as waardes, elkeen in die veld waar die ontleder dink
+    /// hy hoort. Aangrensende reëls van dieselfde veld word saamgevoeg: "Erich"
+    /// bo "Lutz" is twee reëls maar één naam, en die skerm wys een waarde per
+    /// veld.
+    static func values(_ lines: [RecognizedLine]) -> [CardValue] {
         let ordered = CardOCRService.sortedTopToBottom(lines)
         var fields = [CardField?](repeating: nil, count: ordered.count)
 
@@ -73,9 +76,29 @@ enum CardParser {
         assignNameAndCompany(ordered, &fields)
         assignJobTitle(ordered, &fields)
 
-        return zip(ordered, fields).map { line, field in
-            LineAssignment(line: line, field: field ?? .unused)
+        return coalesce(ordered, fields)
+    }
+
+    /// Voeg opeenvolgende reëls van dieselfde veld saam tot een waarde.
+    /// Temp en Nota bly aparte rye — daar tel elke reël op sy eie.
+    private static func coalesce(_ lines: [RecognizedLine], _ fields: [CardField?]) -> [CardValue] {
+        var values: [CardValue] = []
+
+        for (index, line) in lines.enumerated() {
+            let field = fields[index] ?? .temp
+
+            if field.coalesces,
+               var last = values.last,
+               last.field == field {
+                last.text += field.joinSeparator + line.text
+                last.height = Swift.max(last.height, line.height)
+                values[values.count - 1] = last
+            } else {
+                values.append(CardValue(text: line.text, field: field, height: line.height))
+            }
         }
+
+        return values
     }
 
     // MARK: E-pos
@@ -198,9 +221,15 @@ enum CardParser {
             block.removeLast()
         }
 
-        // Die reël net voor die poskode is die dorp; die res is straat/posbus.
+        // Wat oorbly loop van bo na onder al hoe wyer: straat, dan voorstad,
+        // dan dorp. 'n SA-adres lyk tipies so — "PO Box 12427 / Die Boord /
+        // Stellenbosch". Is daar net twee reëls, is die voorstad die een wat
+        // ontbreek, want elke adres het 'n dorp.
         if let city = block.popLast() {
             fields[city] = .city
+        }
+        if block.count > 1, let suburb = block.popLast() {
+            fields[suburb] = .suburb
         }
         for index in block { fields[index] = .street }
     }
