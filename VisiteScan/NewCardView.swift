@@ -10,9 +10,10 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 import VisionKit
+import AVFoundation
 
 enum ActiveSheet: Identifiable {
-    case camera, scanner, files
+    case macro, scanner, files
     var id: Self { self }
 }
 
@@ -26,9 +27,8 @@ struct NewCardView: View {
     @State private var isProcessing = false
     @State private var recognizedLines: [RecognizedLine] = []
 
-    /// Die kamera bestaan nie in die simulator nie — moenie dit daar aanbied nie,
-    /// want UIImagePickerController crash met sourceType .camera.
-    private let cameraAvailable = UIImagePickerController.isSourceTypeAvailable(.camera)
+    /// Die simulator het geen kamera nie — moenie die knoppie daar aanbied nie.
+    private let cameraAvailable = AVCaptureDevice.default(for: .video) != nil
     private let scannerAvailable = VNDocumentCameraViewController.isSupported
 
     var body: some View {
@@ -76,10 +76,10 @@ struct NewCardView: View {
                     HStack(spacing: 0) {
 
                         sourceButton(
-                            icon: "camera.fill",
-                            label: "Kamera",
+                            icon: "camera.macro",
+                            label: "Makro",
                             enabled: cameraAvailable
-                        ) { activeSheet = .camera }
+                        ) { activeSheet = .macro }
 
                         Divider()
 
@@ -134,7 +134,7 @@ struct NewCardView: View {
                     Text("Kaartjie")
                 } footer: {
                     if selectedImage == nil {
-                        Text("Skandeer werk die beste — dit sny die kaartjie uit en regideer die perspektief.")
+                        Text("Makro fokus tot naby aan die kaartjie; Skandeer sny dit uit en regideer die perspektief. Toets albei op dieselfde kaartjie en kyk watter een beter lees.")
                     }
                 }
 
@@ -163,8 +163,8 @@ struct NewCardView: View {
             .navigationTitle("Nuwe kaartjie")
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
-                case .camera:
-                    CameraView(image: $selectedImage)
+                case .macro:
+                    MacroCameraView(image: $selectedImage)
                         .ignoresSafeArea()
                 case .scanner:
                     DocumentScanner(image: $selectedImage)
