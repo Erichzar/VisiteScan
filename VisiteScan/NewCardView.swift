@@ -46,9 +46,11 @@ struct NewCardView: View {
     @State private var selectedImage: UIImage?
 
     @State private var isProcessing = false
-    @State private var recognizedLines: [RecognizedLine] = []
-    @State private var parsed = ParsedCard()
-    @State private var showRawText = false
+
+    /// Elke herkende reël met sy veld. Dit is die enigste bron van waarheid vir
+    /// die uitslag — die veldwaardes word hieruit afgelei (`assignments.card`),
+    /// en die rou teks ook, want elke reël se oorspronklike bly in `line.text`.
+    @State private var assignments: [LineAssignment] = []
 
     /// Die simulator het geen kamera nie — moenie die knoppie daar aanbied nie.
     private let cameraAvailable = AVCaptureDevice.default(for: .video) != nil
@@ -73,8 +75,16 @@ struct NewCardView: View {
                     }
                 }
 
-                if !recognizedLines.isEmpty {
-                    fieldSections
+                if !assignments.isEmpty {
+                    CardFieldsView(assignments: $assignments)
+
+                    Section {
+                        Button {
+                            swapNameAndCompany()
+                        } label: {
+                            Label("Ruil naam ↔ firma", systemImage: "arrow.up.arrow.down")
+                        }
+                    }
                 }
             }
             .navigationTitle("Nuwe kaartjie")
@@ -213,96 +223,19 @@ struct NewCardView: View {
         }
     }
 
-    // MARK: Velde — die ontleder raai, jy stel reg
-
-    @ViewBuilder
-    private var fieldSections: some View {
-
-        Section {
-            TextField("Naam", text: $parsed.firstName)
-                .textContentType(.givenName)
-            TextField("Van", text: $parsed.lastName)
-                .textContentType(.familyName)
-            TextField("Pos", text: $parsed.jobTitle)
-            TextField("Firma", text: $parsed.company)
-                .textContentType(.organizationName)
-
-            // Die ontleder se waarskynlikste fout: die grootste teks is die
-            // naam *of* die firma, en soms kies hy verkeerd.
-            Button {
-                swapNameAndCompany()
-            } label: {
-                Label("Ruil naam ↔ firma", systemImage: "arrow.up.arrow.down")
-            }
-        } header: {
-            Text("Wie")
-        }
-
-        Section {
-            TextField("Selfoon", text: $parsed.mobile)
-                .keyboardType(.phonePad)
-            TextField("Telefoon", text: $parsed.phone)
-                .keyboardType(.phonePad)
-            TextField("E-pos", text: $parsed.email)
-                .keyboardType(.emailAddress)
-                .textInputAutocapitalization(.never)
-            TextField("Webwerf", text: $parsed.website)
-                .keyboardType(.URL)
-                .textInputAutocapitalization(.never)
-        } header: {
-            Text("Kontak")
-        }
-
-        Section {
-            TextField("Straat / Posbus", text: $parsed.street, axis: .vertical)
-            TextField("Dorp", text: $parsed.city)
-            TextField("Poskode", text: $parsed.postalCode)
-                .keyboardType(.numberPad)
-        } header: {
-            Text("Adres")
-        }
-
-        if !parsed.notes.isEmpty {
-            Section("Aantekeninge") {
-                TextField("Aantekeninge", text: $parsed.notes, axis: .vertical)
-            }
-        }
-
-        // Bly beskikbaar: as 'n veld leeg is, wys dit of die OCR die reël
-        // gemis het of die ontleder hom net verkeerd geplaas het.
-        Section {
-            DisclosureGroup("Rou teks — \(recognizedLines.count) reëls",
-                            isExpanded: $showRawText) {
-                ForEach(CardOCRService.sortedTopToBottom(recognizedLines)) { line in
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(line.text)
-                        Spacer()
-                        Text(String(format: "%.0f%%", line.height * 100))
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundStyle(.tertiary)
-                    }
-                    .font(.callout)
-                }
-            }
-        }
-    }
-
     // MARK: Vloei
 
     /// Neem die foto aan en lees hom dadelik. Die OCR loop vanself — die
     /// gebruiker het klaar gesê wat hy wil hê deur die foto te neem.
     private func accept(_ image: UIImage) {
         selectedImage = image
-        recognizedLines = []
-        parsed = ParsedCard()
+        assignments = []
         isProcessing = true
 
         Task {
             let lines = await CardOCRService.recognizeLines(from: image)
             await MainActor.run {
-                recognizedLines = lines
-                parsed = CardParser.parse(lines)
+                assignments = CardParser.assign(lines)
                 isProcessing = false
             }
         }
@@ -310,19 +243,22 @@ struct NewCardView: View {
 
     private func clear() {
         selectedImage = nil
-        recognizedLines = []
-        parsed = ParsedCard()
-        showRawText = false
+        assignments = []
     }
 
     /// Die persoon se naam en die firma is albei groot gedruk, so die ontleder
-    /// kan hulle omruil. Dit is goedkoper om dit met een knoppie reg te stel as
-    /// om drie velde oor te tik.
+    /// kan hulle omruil. Een tik stel dit reg, in plaas van elke reël afsonderlik
+    /// oor te sleep.
     private func swapNameAndCompany() {
-        let person = parsed.fullName
-        parsed.firstName = parsed.company
-        parsed.lastName = ""
-        parsed.company = person
+        withAnimation(.snappy) {
+            for index in assignments.indices {
+                switch assignments[index].field {
+                case .name:    assignments[index].field = .company
+                case .company: assignments[index].field = .name
+                default:       break
+                }
+            }
+        }
     }
 }
 

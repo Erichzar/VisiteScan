@@ -10,7 +10,7 @@
 > `github.com/Erichzar/VisiteScan`. Onbepland bygekom: die makro-kamera
 > (`MacroCameraView`) en die uitsny-skerm (`CardCropView`) — sien Stap 2½.
 >
-> **Stap 5 klaar. Volgende: Stap 6 (veldlys met skuiwers).**
+> **Stappe 5 en 6 klaar. Volgende: Stap 7 (stoor) — die app kan nog nie klaarmaak nie.**
 > Dit is die herontwerp wat Erich op 26 Julie gevra het, in sy woorde:
 > die kaartjie word geskandeer; dan 'n lys velde soos in die Contacts-app;
 > die gelese teks word so goed moontlik daarteen gepas; en wat verkeerd
@@ -142,22 +142,21 @@ Die skanderings was dof: albei stelselkameras gebruik die groothoeklens, wat nie
 **Toets uitstaande:** uit 'n koue app twee tikke tot by 'n gelese kaartjie (hoofknoppie + sluiter), plus die hoek-kontrole.
 `CameraView` in `ImagePickers.swift` is nou ongebruik — kan by Stap 10 uit.
 
-### Stap 6 — Veldlys met skuiwers ⭐ *(die kern van die herontwerp)*
+### Stap 6 — Veldlys met skuiwers ✅ *(die kern van die herontwerp)*
 
-Erich se spesifikasie: die uitslag lyk soos die Contacts-app se veldlys, en 'n reël wat verkeerd geplaas is, **sleep jy met die driestrepie-handvatsel na die regte veld**.
+Erich se spesifikasie: die uitslag lyk soos die Contacts-app se veldlys, en 'n reël wat verkeerd geplaas is **skuif jy met die driestrepie-handvatsel na die regte veld**.
 
-**Die argitektuur-verandering wat dit moontlik maak:** `CardParser` gee tans net stringe terug. Dit moet 'n **toewysing per reël** teruggee — elke `RecognizedLine` gekoppel aan 'n veld (of aan "Nie gebruik nie"). Die veldwaardes word dan uit die toewysings afgelei, nie andersom nie. Sleep = verander een reël se veld; die stringe herbereken hulself.
+**Die argitektuur-verandering wat dit moontlik maak** (in `CardField.swift`): `CardParser` gee nie meer stringe terug nie maar `[LineAssignment]` — elke `RecognizedLine` gekoppel aan 'n `CardField` (of aan `.unused`). Die veldwaardes word uit die toewysings *afgelei* (`assignments.card`), nie andersom nie. Skuif = een reël se veld verander; alles herbereken homself. `ParsedCard` bestaan nog, maar as afgeleide waarde.
 
-```swift
-enum CardField: CaseIterable { case naam, van, pos, firma, sel, tel, epos, web, straat, dorp, poskode, ongebruik }
-struct LineAssignment: Identifiable { let line: RecognizedLine; var field: CardField }
-```
+**Die skerm** (`CardFieldsView.swift`): 'n afdeling per groep in Contacts se volgorde (Wie / Kontak / Adres / Ekstra), plus **"Nie gebruik nie"** onderaan. Elke veld is een ry wat sy reëls hou — 'n veld kan meer as een hê (straat; 'n naam oor twee reëls). Elke reël se teks bly tikbaar om 'n OCR-fout reg te maak.
 
-**Die skerm:** een `List`, 'n afdeling per veld in die Contacts-volgorde (naam-groep, firma/pos, telefone, e-pos, web, adres), onderaan **"Nie gebruik nie"** met al die oorskietreëls. Elke reël is 'n ry met die stelsel-sleephandvatsel. 'n Veld kan meer as een reël hou (straat; naam oor twee reëls). Elke reël se teks bly ook tikbaar-wysigbaar, en die "Ruil naam ↔ firma"-knoppie bly.
+**Twee maniere om te skuif, albei doelbewus:**
+1. **Sleep** aan die ≡-handvatsel (`.draggable` / `.dropDestination`) — wat Erich gevra het, en die vinnigste as die lys sigbaar is.
+2. **Tik** die pyltjie regs vir 'n kieslys van al die velde — sleep tussen afdelings is fyn duimwerk, en dié een mis nooit, veral wanneer die teikenveld buite die skerm lê.
 
-**Meganisme — toets op die toestel, kies wat werk:** die native driestrepie-handvatsels kom uit 'n `List` in aktiewe `editMode` met `.onMove`; oor afdelings heen is `.onMove` egter beperk, en dan is `.draggable(_:)` / `.dropDestination(for:)` op die rye die alternatief. Die plan skryf die gedrag voor, nie die API nie — maar die toewysing-per-reël-model hierbo is nie onderhandelbaar nie, anders word die sleep 'n string-gemors.
+Die "Ruil naam ↔ firma"-knoppie bly: dit ruil al die `.name`- en `.company`-reëls gelyk om, in plaas van elkeen afsonderlik te sleep.
 
-**Toets op Erich se eie kaartjie:** sleep "architects in association" uit die verkeerde veld na Firma met een gebaar; die velde werk dadelik reg; tik-wysiging werk steeds.
+**Toets uitstaande:** sleep op die toestel — voel die ≡-gebaar reg, of is die kieslys in die praktyk die een wat gebruik word? Dit bepaal of die sleep bly.
 
 ### Stap 7 — Stoor 🎯 *(eerste prys)*
 
@@ -196,8 +195,8 @@ iCloud-houer byvoeg (Xcode, Signing & Capabilities), `ModelConfiguration` oorska
 3.  Rou OCR          ✅
 4.  Ontleding        ✅
 5.  Vloei            ✅
-6.  Veldlys met skuiwers  ← ONS IS HIER — die kern van die herontwerp
-7.  Stoor            ← eerste prys
+6.  Veldlys met skuiwers  ✅
+7.  Stoor            ← ONS IS HIER — eerste prys
 8.  Geskiedenis + duplikate
 9.  vCard-uitvoer
 10. Afwerking

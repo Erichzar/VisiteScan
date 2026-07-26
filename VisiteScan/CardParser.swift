@@ -2,7 +2,7 @@
 //  CardParser.swift
 //  VisiteScan
 //
-//  Stap 4: van rou OCR-reëls na velde.
+//  Stap 4: van rou OCR-reëls na velde. Stap 6: as toewysings, nie stringe nie.
 //
 //  Die oorspronklike Visitescan se `01-parsing-quality`-fase was hieroor.
 //
@@ -15,36 +15,16 @@
 //  kaartjie, en dit is 'n aansienlik betroubaarder merker as woordelyste.
 //
 //  Die volgorde hieronder is doelbewus: die velde met 'n harde vorm (e-pos,
-//  telefoon, webwerf, poskode) word eerste uitgehaal en uit die pot verwyder.
-//  Wat oorbly, is die sagte velde — naam, firma, pos — en teen daardie tyd is
-//  daar heelwat minder reëls om tussen te kies.
+//  telefoon, webwerf, poskode) word eerste toegewys. Wat oorbly, is die sagte
+//  velde — naam, firma, pos — en teen daardie tyd is daar heelwat minder reëls
+//  om tussen te kies.
+//
+//  Die uitset is `[LineAssignment]`: elke reël met sy veld. Raai die ontleder
+//  verkeerd, skuif die mens die reël — sien `CardFieldsView`.
 //
 
 import Foundation
 import CoreGraphics
-
-// MARK: - Die uitslag
-
-struct ParsedCard {
-    var firstName = ""
-    var lastName = ""
-    var jobTitle = ""
-    var company = ""
-    var email = ""
-    var phone = ""
-    var mobile = ""
-    var website = ""
-    var street = ""
-    var city = ""
-    var postalCode = ""
-    var notes = ""
-
-    var fullName: String {
-        [firstName, lastName].filter { !$0.isEmpty }.joined(separator: " ")
-    }
-}
-
-// MARK: - Die ontleder
 
 enum CardParser {
 
@@ -55,7 +35,7 @@ enum CardParser {
         "group", "groep", "holdings", "trust", "consulting", "konsult",
         "architects", "argitekte", "attorneys", "prokureurs", "properties",
         "eiendomme", "studio", "agency", "agentskap", "solutions", "services",
-        "dienste", "motors", "engineering", "ingenieurs", "&"
+        "dienste", "motors", "engineering", "ingenieurs", "filters", "&"
     ]
 
     /// Beroepsaanduidings. Kort reëls wat nêrens anders pas nie en hierby
@@ -71,73 +51,78 @@ enum CardParser {
 
     private static let addressMarkers = [
         "po box", "p.o. box", "posbus", "private bag", "privaatsak", "postnet",
-        "street", "straat", "road", "weg", "avenue", "laan", "drive", "rylaan",
-        "suite", "unit", "eenheid", "floor", "vloer", "building", "gebou"
+        "street", "straat", " str.", " str ", "road", " rd", "weg", "avenue",
+        " ave", "laan", "drive", "rylaan", "suite", "unit", "eenheid",
+        "floor", "vloer", "building", "gebou"
     ]
 
     // MARK: Ingang
 
-    static func parse(_ lines: [RecognizedLine]) -> ParsedCard {
+    /// Elke reël, van bo na onder, met die veld waarheen die ontleder dink hy gaan.
+    static func assign(_ lines: [RecognizedLine]) -> [LineAssignment] {
         let ordered = CardOCRService.sortedTopToBottom(lines)
-        var card = ParsedCard()
+        var fields = [CardField?](repeating: nil, count: ordered.count)
 
-        /// Reëls wat reeds 'n veld geword het. Wat oorbly, voed die naamkeuse.
-        var claimed = Set<Int>()
+        // 1. Harde vorms eerste — hulle is die betroubaarste
+        assignEmail(ordered, &fields)
+        assignPhones(ordered, &fields)
+        assignWebsite(ordered, &fields)
+        assignAddress(ordered, &fields)
 
-        // 1. Harde vorms, van bo af
-        extractEmail(ordered, into: &card, claimed: &claimed)
-        extractPhones(ordered, into: &card, claimed: &claimed)
-        extractWebsite(ordered, into: &card, claimed: &claimed)
-        extractAddress(ordered, into: &card, claimed: &claimed)
+        // 2. Dan die sagte keuse, uit wat oorbly
+        assignNameAndCompany(ordered, &fields)
+        assignJobTitle(ordered, &fields)
 
-        // 2. Sagte velde uit wat oorbly
-        let remaining = ordered.enumerated()
-            .filter { !claimed.contains($0.offset) }
-            .map { $0.element }
-
-        assignNameAndCompany(remaining, into: &card)
-        assignJobTitle(remaining, into: &card)
-
-        return card
+        return zip(ordered, fields).map { line, field in
+            LineAssignment(line: line, field: field ?? .unused)
+        }
     }
 
     // MARK: E-pos
 
-    private static func extractEmail(_ lines: [RecognizedLine],
-                                     into card: inout ParsedCard,
-                                     claimed: inout Set<Int>) {
+    private static func assignEmail(_ lines: [RecognizedLine], _ fields: inout [CardField?]) {
         let pattern = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
 
-        for (index, line) in lines.enumerated() {
-            // OCR lees gereeld 'n spasie om die @ in; haal dit uit voor die toets.
-            let candidate = line.text.replacingOccurrences(of: " @ ", with: "@")
-                .replacingOccurrences(of: " @", with: "@")
-                .replacingOccurrences(of: "@ ", with: "@")
-
-            if let match = candidate.firstMatch(of: pattern) {
-                card.email = String(match.output).lowercased()
-                claimed.insert(index)
+        for (index, line) in lines.enumerated() where fields[index] == nil {
+            if squashedEmail(line.text).firstMatch(of: pattern) != nil {
+                fields[index] = .email
                 return
             }
         }
+    }
+
+    /// OCR lees gereeld 'n spasie om die @ in.
+    private static func squashedEmail(_ text: String) -> String {
+        text.replacingOccurrences(of: " @ ", with: "@")
+            .replacingOccurrences(of: " @", with: "@")
+            .replacingOccurrences(of: "@ ", with: "@")
+    }
+
+    /// Die e-pos soos hy op die kaartjie staan — nodig vir die naam/firma-keuse.
+    private static func email(in lines: [RecognizedLine], _ fields: [CardField?]) -> String {
+        let pattern = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
+        for (index, line) in lines.enumerated() where fields[index] == .email {
+            if let match = squashedEmail(line.text).firstMatch(of: pattern) {
+                return String(match.output).lowercased()
+            }
+        }
+        return ""
     }
 
     // MARK: Telefoon
 
     /// Suid-Afrikaanse nommers: selfoon begin met 06, 07 of 08; 'n landlyn met
     /// 01 tot 05. Internasionaal word +27 na 0 herlei sodat een reël albei dek.
-    private static func extractPhones(_ lines: [RecognizedLine],
-                                      into card: inout ParsedCard,
-                                      claimed: inout Set<Int>) {
-        for (index, line) in lines.enumerated() {
+    private static func assignPhones(_ lines: [RecognizedLine], _ fields: inout [CardField?]) {
+        var haveMobile = false
+        var havePhone = false
+
+        for (index, line) in lines.enumerated() where fields[index] == nil {
             let lower = line.text.lowercased()
             guard let digits = phoneDigits(in: line.text) else { continue }
 
-            claimed.insert(index)
-
-            // 'n Etiket op die kaartjie oorheers die nommer se eie vorm.
             if lower.contains("fax") || lower.contains("faks") {
-                card.notes = appending("Faks: \(digits)", to: card.notes)
+                fields[index] = .notes
                 continue
             }
 
@@ -145,22 +130,25 @@ enum CardParser {
                 || lower.contains("mobile") || digits.hasPrefix("06")
                 || digits.hasPrefix("07") || digits.hasPrefix("08")
 
-            if isMobile {
-                if card.mobile.isEmpty { card.mobile = digits }
+            if isMobile, !haveMobile {
+                fields[index] = .mobile
+                haveMobile = true
+            } else if !isMobile, !havePhone {
+                fields[index] = .phone
+                havePhone = true
             } else {
-                if card.phone.isEmpty { card.phone = digits }
+                // 'n Derde nommer: laat die mens besluit waar hy hoort.
+                fields[index] = .notes
             }
         }
     }
 
     /// Gee die nommer terug as die reël soos 'n telefoonnommer lyk, anders nil.
-    private static func phoneDigits(in text: String) -> String? {
-        var digits = text.filter { $0.isNumber || $0 == "+" }
-
+    static func phoneDigits(in text: String) -> String? {
         // 'n Reël met te veel letters is eerder 'n adres met 'n straatnommer.
-        let letters = text.filter { $0.isLetter }.count
-        guard letters <= 6 else { return nil }
+        guard text.filter({ $0.isLetter }).count <= 6 else { return nil }
 
+        var digits = text.filter { $0.isNumber || $0 == "+" }
         if digits.hasPrefix("+27") {
             digits = "0" + digits.dropFirst(3)
         } else if digits.hasPrefix("27"), digits.count == 11 {
@@ -174,15 +162,12 @@ enum CardParser {
 
     // MARK: Webwerf
 
-    private static func extractWebsite(_ lines: [RecognizedLine],
-                                       into card: inout ParsedCard,
-                                       claimed: inout Set<Int>) {
+    private static func assignWebsite(_ lines: [RecognizedLine], _ fields: inout [CardField?]) {
         let pattern = /(?:https?:\/\/)?(?:www\.)[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
 
-        for (index, line) in lines.enumerated() where !claimed.contains(index) {
-            if let match = line.text.firstMatch(of: pattern) {
-                card.website = String(match.output).lowercased()
-                claimed.insert(index)
+        for (index, line) in lines.enumerated() where fields[index] == nil {
+            if line.text.firstMatch(of: pattern) != nil {
+                fields[index] = .website
                 return
             }
         }
@@ -190,107 +175,95 @@ enum CardParser {
 
     // MARK: Adres
 
-    private static func extractAddress(_ lines: [RecognizedLine],
-                                       into card: inout ParsedCard,
-                                       claimed: inout Set<Int>) {
-        var block: [(index: Int, text: String)] = []
+    private static func assignAddress(_ lines: [RecognizedLine], _ fields: inout [CardField?]) {
+        var block: [Int] = []
 
-        for (index, line) in lines.enumerated() where !claimed.contains(index) {
+        for (index, line) in lines.enumerated() where fields[index] == nil {
             let lower = line.text.lowercased()
             let isMarker = addressMarkers.contains { lower.contains($0) }
-            let isPostal = line.text.trimmingCharacters(in: .whitespaces).wholeMatch(of: /\d{4}/) != nil
 
             // Sodra die blok begin het, hoort die volgende reëls tot by die
             // poskode daarby — 'n adres loop oor verskeie reëls.
-            if isMarker || isPostal || !block.isEmpty {
-                block.append((index, line.text))
-                if isPostal { break }
+            if isMarker || isPostalCode(line.text) || !block.isEmpty {
+                block.append(index)
+                if isPostalCode(line.text) { break }
             }
         }
 
         guard !block.isEmpty else { return }
 
         // Die poskode is die laaste reël as dit vier syfers alleen is.
-        if let last = block.last,
-           last.text.trimmingCharacters(in: .whitespaces).wholeMatch(of: /\d{4}/) != nil {
-            card.postalCode = last.text.trimmingCharacters(in: .whitespaces)
+        if let last = block.last, isPostalCode(lines[last].text) {
+            fields[last] = .postalCode
             block.removeLast()
         }
 
         // Die reël net voor die poskode is die dorp; die res is straat/posbus.
         if let city = block.popLast() {
-            card.city = city.text
+            fields[city] = .city
         }
-        card.street = block.map(\.text).joined(separator: ", ")
+        for index in block { fields[index] = .street }
+    }
 
-        // Merk alles wat werklik 'n adresveld geword het.
-        for entry in block { claimed.insert(entry.index) }
-        if !card.city.isEmpty || !card.postalCode.isEmpty {
-            for (index, line) in lines.enumerated()
-            where line.text == card.city || line.text.trimmingCharacters(in: .whitespaces) == card.postalCode {
-                claimed.insert(index)
-            }
-        }
+    private static func isPostalCode(_ text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespaces).wholeMatch(of: /\d{4}/) != nil
     }
 
     // MARK: Naam en firma — die eintlike vraag
 
-    private static func assignNameAndCompany(_ lines: [RecognizedLine],
-                                             into card: inout ParsedCard) {
-        let blocks = mergeIntoBlocks(lines)
+    private static func assignNameAndCompany(_ lines: [RecognizedLine], _ fields: inout [CardField?]) {
+        let free = lines.indices.filter { fields[$0] == nil }
+        guard !free.isEmpty else { return }
+
+        let blocks = mergeIntoBlocks(lines, indices: free)
         guard !blocks.isEmpty else { return }
 
         // Die grootste blokke eerste. Die naam of die firma is byna altyd een
         // van hulle — dit is presies wat op werklike kaartjies bevestig is.
         let ranked = blocks.sorted { $0.height > $1.height }
 
-        let localPart = card.email.split(separator: "@").first.map(String.init) ?? ""
-        let domain = card.email.split(separator: "@").last?
+        let address = email(in: lines, fields)
+        let localPart = address.split(separator: "@").first.map(String.init) ?? ""
+        let domain = address.split(separator: "@").last?
             .split(separator: ".").first.map(String.init) ?? ""
 
-        var personBlock: Block?
-        var companyBlock: Block?
+        var person: Block?
+        var company: Block?
 
         // Eerste keuse: die e-pos wys aan.
         for block in ranked {
             let squashed = block.text.lowercased().filter { $0.isLetter }
-            if personBlock == nil, !localPart.isEmpty,
-               matchesEmailPart(squashed, localPart) {
-                personBlock = block
-            } else if companyBlock == nil, !domain.isEmpty,
-                      matchesEmailPart(squashed, domain) {
-                companyBlock = block
+            if person == nil, matchesEmailPart(squashed, localPart) {
+                person = block
+            } else if company == nil, matchesEmailPart(squashed, domain) {
+                company = block
             }
         }
 
         // Tweede keuse: 'n firma-merker in die teks.
-        if companyBlock == nil {
-            companyBlock = ranked.first { block in
-                block !== personBlock && looksLikeCompany(block.text)
-            }
+        if company == nil {
+            company = ranked.first { $0.indices != person?.indices && looksLikeCompany($0.text) }
         }
 
         // Wat oorbly: die grootste blok wat nog nie opgeëis is nie word die
         // persoon, want 'n kaartjie wat 'n persoon se naam heeltemal weglaat is
         // seldsaam.
-        if personBlock == nil {
-            personBlock = ranked.first { block in
-                block !== companyBlock && looksLikePerson(block.text)
-            }
+        if person == nil {
+            person = ranked.first { $0.indices != company?.indices && looksLikePerson($0.text) }
         }
-        if companyBlock == nil {
-            companyBlock = ranked.first { $0 !== personBlock }
+        if company == nil {
+            company = ranked.first { $0.indices != person?.indices }
         }
 
-        if let person = personBlock { splitName(person.text, into: &card) }
-        if let company = companyBlock { card.company = company.text }
+        for index in person?.indices ?? [] { fields[index] = .name }
+        for index in company?.indices ?? [] { fields[index] = .company }
     }
 
     /// Die e-pos se dele bevat selde spasies of punte wat by die gedrukte naam
     /// pas, so vergelyk op letters alleen en in albei rigtings.
     private static func matchesEmailPart(_ squashedText: String, _ part: String) -> Bool {
         let cleaned = part.filter { $0.isLetter }
-        guard cleaned.count >= 3 else { return false }
+        guard cleaned.count >= 3, !squashedText.isEmpty else { return false }
         return squashedText.contains(cleaned) || cleaned.contains(squashedText)
     }
 
@@ -306,27 +279,15 @@ enum CardParser {
         return !looksLikeCompany(text)
     }
 
-    private static func splitName(_ text: String, into card: inout ParsedCard) {
-        let words = text.split(separator: " ").map(String.init)
-        guard let last = words.last else { return }
-        card.firstName = words.dropLast().joined(separator: " ")
-        card.lastName = last
-        if card.firstName.isEmpty {
-            card.firstName = last
-            card.lastName = ""
-        }
-    }
-
     // MARK: Postitel
 
-    private static func assignJobTitle(_ lines: [RecognizedLine],
-                                       into card: inout ParsedCard) {
-        for line in lines {
+    private static func assignJobTitle(_ lines: [RecognizedLine], _ fields: inout [CardField?]) {
+        for (index, line) in lines.enumerated() where fields[index] == nil {
             let lower = line.text.lowercased()
-            guard titleMarkers.contains(where: { lower.contains($0) }) else { continue }
-            guard line.text != card.company, !card.fullName.contains(line.text) else { continue }
-            card.jobTitle = line.text
-            return
+            if titleMarkers.contains(where: { lower.contains($0) }) {
+                fields[index] = .jobTitle
+                return
+            }
         }
     }
 
@@ -335,46 +296,41 @@ enum CardParser {
     /// 'n Naam staan dikwels oor twee reëls — op Erich se kaartjie is "Erich" en
     /// "Lutz" twee aparte OCR-reëls. Reëls wat aangrensend is én omtrent
     /// ewe groot, hoort by mekaar.
-    final class Block {
+    struct Block {
+        let indices: [Int]
         let text: String
         let height: CGFloat
-        init(text: String, height: CGFloat) {
-            self.text = text
-            self.height = height
-        }
     }
 
-    private static func mergeIntoBlocks(_ lines: [RecognizedLine]) -> [Block] {
-        guard !lines.isEmpty else { return [] }
+    private static func mergeIntoBlocks(_ lines: [RecognizedLine], indices: [Int]) -> [Block] {
+        guard let first = indices.first else { return [] }
 
         var blocks: [Block] = []
-        var currentText = lines[0].text
-        var currentHeight = lines[0].height
-        var previous = lines[0]
+        var currentIndices = [first]
+        var currentText = lines[first].text
+        var currentHeight = lines[first].height
+        var previous = lines[first]
 
-        for line in lines.dropFirst() {
+        for index in indices.dropFirst() {
+            let line = lines[index]
             let similarHeight = abs(line.height - previous.height) < previous.height * 0.3
             let gap = previous.boundingBox.minY - line.boundingBox.maxY
             let adjacent = gap < previous.height * 0.8
 
             if similarHeight && adjacent {
+                currentIndices.append(index)
                 currentText += " " + line.text
-                currentHeight = max(currentHeight, line.height)
+                currentHeight = Swift.max(currentHeight, line.height)
             } else {
-                blocks.append(Block(text: currentText, height: currentHeight))
+                blocks.append(Block(indices: currentIndices, text: currentText, height: currentHeight))
+                currentIndices = [index]
                 currentText = line.text
                 currentHeight = line.height
             }
             previous = line
         }
-        blocks.append(Block(text: currentText, height: currentHeight))
+        blocks.append(Block(indices: currentIndices, text: currentText, height: currentHeight))
 
         return blocks
-    }
-
-    // MARK: Hulpies
-
-    private static func appending(_ value: String, to existing: String) -> String {
-        existing.isEmpty ? value : existing + "\n" + value
     }
 }
