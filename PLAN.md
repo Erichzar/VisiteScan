@@ -10,7 +10,7 @@
 > `github.com/Erichzar/VisiteScan`. Onbepland bygekom: die makro-kamera
 > (`MacroCameraView`) en die uitsny-skerm (`CardCropView`) — sien Stap 2½.
 >
-> **Volgende: Stap 5 (vloei) en dan Stap 6 (veldlys met skuiwers).**
+> **Stap 5 klaar. Volgende: Stap 6 (veldlys met skuiwers).**
 > Dit is die herontwerp wat Erich op 26 Julie gevra het, in sy woorde:
 > die kaartjie word geskandeer; dan 'n lys velde soos in die Contacts-app;
 > die gelese teks word so goed moontlik daarteen gepas; en wat verkeerd
@@ -131,17 +131,16 @@ Die skanderings was dof: albei stelselkameras gebruik die groothoeklens, wat nie
 
 ---
 
-### Stap 5 — Vloei: van vorm na skandeervloei ← **BEGIN HIER**
-
-Die skerm is nou 'n vorm met vier ewe groot knoppies, 'n logo wat plek mors, en 'n onnodige "Lees kaartjie"-tik. Dit moet 'n vloei word:
+### Stap 5 — Vloei: van vorm na skandeervloei ✅
 
 **maak oop → een groot knoppie → kamera → uitsny → velde staan daar.**
 
-1. **Auto-lees.** Sodra `CardCropView` se "Gebruik" gedruk word, loop die OCR en die ontleding vanself. Die "Lees kaartjie"-knoppie verdwyn. (Geld vir alle bronne — ook galery en Lêers gaan deur die uitsny-skerm.)
-2. **Een hoofknoppie.** Een groot "Skandeer kaartjie"-knoppie wat die makro-kamera oopmaak. Die ander bronne (dokumentskandeerder, galery, Lêers) skuif na 'n klein `Menu` daaronder. Die logo-kopskrif verdwyn van hierdie skerm (dit kan in Instellings se Oor-afdeling gaan woon).
-3. **Teks op die uitsny-knoppies.** `CardCropView` se Draai / Herken weer / Hele foto kry woorde by die ikone (`labelStyle` van `.iconOnly` na ikoon-bo-teks).
+1. **Auto-lees** ✅ — `accept(_:)` loop die OCR en ontleding sodra 'n foto aankom. Die "Lees kaartjie"-knoppie is weg. Elke bron loop nou deur dieselfde tregter (`incomingImage` → `cropCandidate` → `CardCropView` → `accept`), ook die dokumentskandeerder: die ekstra skerm kos een tik en spaar 'n tweede kodepad. Word die uitsny gekanselleer, word die ongesnye foto steeds gelees.
+2. **Een hoofknoppie** ✅ — groot "Skandeer kaartjie" na die makro-kamera; die res onder 'n `Menu` ("Ander bronne"). Die logo woon nou in Instellings se Oor-afdeling.
+3. **Teks op die uitsny-knoppies** ✅ — Draai / Herken weer / Hele foto het ikoon-bo-teks.
 
-**Toets:** uit 'n koue app is dit twee tikke tot by 'n gelese kaartjie (hoofknoppie + sluiter), plus die hoek-kontrole.
+**Toets uitstaande:** uit 'n koue app twee tikke tot by 'n gelese kaartjie (hoofknoppie + sluiter), plus die hoek-kontrole.
+`CameraView` in `ImagePickers.swift` is nou ongebruik — kan by Stap 10 uit.
 
 ### Stap 6 — Veldlys met skuiwers ⭐ *(die kern van die herontwerp)*
 
@@ -196,8 +195,8 @@ iCloud-houer byvoeg (Xcode, Signing & Capabilities), `ModelConfiguration` oorska
 2½. Makro + uitsny   ✅  (onbepland — uit toetsing gebore)
 3.  Rou OCR          ✅
 4.  Ontleding        ✅
-5.  Vloei            ← ONS IS HIER — klein, vinnige wins
-6.  Veldlys met skuiwers  ← die kern van Erich se herontwerp
+5.  Vloei            ✅
+6.  Veldlys met skuiwers  ← ONS IS HIER — die kern van die herontwerp
 7.  Stoor            ← eerste prys
 8.  Geskiedenis + duplikate
 9.  vCard-uitvoer

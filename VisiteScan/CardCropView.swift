@@ -172,32 +172,40 @@ struct CardCropView: View {
     // MARK: Onderdele
 
     private var controls: some View {
-        HStack(spacing: 32) {
-            Button {
+        HStack(spacing: 0) {
+            controlButton("Draai", icon: "rotate.right") {
                 working = working.rotatedQuarterTurn()
                 detect()
-            } label: {
-                Label("Draai", systemImage: "rotate.right")
             }
-
-            Button {
+            controlButton("Herken weer", icon: "viewfinder") {
                 detect()
-            } label: {
-                Label("Herken weer", systemImage: "viewfinder")
             }
-
-            Button {
-                corners = Self.defaultCorners
-            } label: {
-                Label("Hele foto", systemImage: "rectangle.dashed")
+            controlButton("Hele foto", icon: "rectangle.dashed") {
+                withAnimation(.easeOut(duration: 0.2)) { corners = Self.defaultCorners }
             }
         }
-        .font(.caption)
-        .labelStyle(.iconOnly)
-        .imageScale(.large)
-        .padding(.vertical, 14)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
         .background(.bar)
+    }
+
+    /// Ikoon én woord. Net 'n ikoon laat 'n mens raai wat die knoppie doen,
+    /// en "Herken weer" teenoor "Hele foto" is nie uit 'n prentjie duidelik nie.
+    private func controlButton(_ title: String,
+                               icon: String,
+                               action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.title3)
+                Text(title)
+                    .font(.caption2)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color.accentColor)
     }
 
     private func quadOutline(in frame: CGRect) -> some View {

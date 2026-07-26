@@ -29,6 +29,32 @@ struct SettingsView: View {
                 //         .font(.caption)
                 // }
 
+                // Die logo het op die skandeerskerm plek gemors; hier hoort dit.
+                Section {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            if let logo = UIImage(named: "AppLogo") {
+                                Image(uiImage: logo)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 72, height: 72)
+                                    .cornerRadius(16)
+                            } else {
+                                Image(systemName: "person.crop.rectangle")
+                                    .font(.system(size: 48))
+                                    .foregroundStyle(.blue)
+                            }
+                            Text("VisiteScan")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, 8)
+                    .listRowBackground(Color.clear)
+                }
+
                 Section {
                     HStack {
                         Text("VisiteScan")
