@@ -2,47 +2,21 @@
 //  ImagePickers.swift
 //  VisiteScan
 //
-//  Die twee UIKit-kiesers wat SwiftUI nie self het nie: die gewone kamera
-//  en die Lêers-blaaier. (Galery gebruik SwiftUI se eie .photosPicker.)
+//  Die Lêers-blaaier, wat SwiftUI nie self het nie.
+//  (Galery gebruik SwiftUI se eie .photosPicker.)
 //
 //  Uit FuelScan oorgeneem.
+//
+//  Hier was ook 'n `CameraView` — 'n UIImagePickerController op die gewone
+//  kamera. Stap 2½ het hom vervang: die stelselkamera gebruik die groothoeklens
+//  en kan nie naby genoeg fokus nie, so `MacroCameraView` het sy plek geneem en
+//  hierdie een het sedertdien net stil saamgery. Uit, want dooie kode laat 'n
+//  mens later wonder watter van die twee die regte pad is.
 //
 
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
-
-// MARK: - Kamera
-
-struct CameraView: UIViewControllerRepresentable {
-    @Environment(\.dismiss) private var dismiss
-    @Binding var image: UIImage?
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: CameraView
-        init(_ parent: CameraView) { self.parent = parent }
-
-        func imagePickerController(_ picker: UIImagePickerController,
-                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            parent.image = info[.originalImage] as? UIImage
-            parent.dismiss()
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.dismiss()
-        }
-    }
-}
 
 // MARK: - Lêers
 

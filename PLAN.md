@@ -91,7 +91,7 @@ Nog uitstaande: `icloud-container-identifiers` is 'n leë lys. By Stap 11 kom `i
 | `MacroCameraView.swift` | ✅ | Eie AVCapture-kamera; virtuele toestel gee makro |
 | `CardCropView.swift` | ✅ | Hoekherkenning, sleepbare hoeke, perspektiefregstelling |
 | `DocumentScanner.swift` | ✅ | VisionKit-skandeerder (sekondêre pad) |
-| `ImagePickers.swift` | ✅ | Lêers-kieser (die ou `CameraView` is nie meer in gebruik nie) |
+| `ImagePickers.swift` | ✅ | Lêers-kieser (die ou `CameraView` is uit — `MacroCameraView` het sy plek) |
 | `CardOCRService.swift` | ✅ | OCR wat `[RecognizedLine]` met posisie en hoogte teruggee |
 | `CardParser.swift` | ✅ | Stap 4 — reëls → velde, e-pos as skeidsregter |
 | `NewCardView.swift` | ✅ | Die hoofskerm — word in Stap 5–6 herontwerp |
@@ -140,7 +140,7 @@ Die skanderings was dof: albei stelselkameras gebruik die groothoeklens, wat nie
 3. **Teks op die uitsny-knoppies** ✅ — Draai / Herken weer / Hele foto het ikoon-bo-teks.
 
 **Toets uitstaande:** uit 'n koue app twee tikke tot by 'n gelese kaartjie (hoofknoppie + sluiter), plus die hoek-kontrole.
-`CameraView` in `ImagePickers.swift` is nou ongebruik — kan by Stap 10 uit.
+`CameraView` in `ImagePickers.swift` is uit — hy was sedert Stap 2½ ongebruik. ✅
 
 ### Stap 6 — Veldlys met skuiwers ✅ *(die kern van die herontwerp)*
 
